@@ -2,12 +2,13 @@
   "name": "accessify",
   "description": "A simple REST API to generate and cache anonymous Spotify access tokens using Playwright",
   "version": "1.0.0",
-  "main": "index.js",
+  "main": "dist/server.js",
   "private": true,
   "scripts": {
-    "start": "tsup && node dist/server.js",
-    "start:run": "node dist/server.js",
-    "format": "biome format --write ./src"
+    "start": "node dist/server.js",
+    "build": "tsup",
+    "format": "biome format --write ./src",
+    "postinstall": "npx playwright install --with-deps chromium"
   },
   "author": "iaMJ",
   "license": "ISC",
@@ -19,14 +20,8 @@
   },
   "devDependencies": {
     "@biomejs/biome": "^2.1.1",
-    "@types/bun": "latest",
-    "@types/node": "^24.0.12",
+    "@types/node": "^20.0.10",
     "tsup": "^8.5.0",
     "typescript": "^5.8.3"
-  },
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "esbuild"
-    ]
   }
 }

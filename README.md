@@ -4,9 +4,11 @@
 
 A simple REST API to generate and cache anonymous Spotify access tokens using Playwright. This project is primarily designed for use as a custom anonymous token endpoint for [LavaSrc](https://github.com/topi314/LavaSrc) on Lavalink, but can be used in any application or service that needs a fresh Spotify access token.
 
+> **Alternative:** For a compiled/binary version, you can use [accessify-rs](https://github.com/idMJA/accessify-rs) — a Rust port of this project.
+
 ## Features
 - Generate anonymous Spotify access tokens (browser automation, Playwright)
-- Designed for seamless integration with LavaSrc/Lavalink (customAnonymousTokenEndpoint)
+- Designed for seamless integration with LavaSrc/Lavalink (`customTokenEndpoint`)
 - Can be used by any service needing a Spotify access token
 - Token caching with force refresh support
 - Concurrency-safe (Semaphore)
@@ -68,7 +70,7 @@ This API can be used as a custom anonymous token endpoint for [LavaSrc](https://
 ```yaml
 spotify:
   preferAnonymousToken: true
-  customAnonymousTokenEndpoint: "http://localhost:3000/spotifytoken"
+  customTokenEndpoint: "http://localhost:3000/spotifytoken"
 ```
 
 ## Notes

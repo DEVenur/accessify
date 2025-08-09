@@ -4,6 +4,7 @@ import type {
 	LaunchOptions,
 	BrowserContext,
 	Response,
+	Page,
 } from "playwright";
 import type { SpotifyToken } from "../types/spotify";
 import { logs } from "../utils/logger";
@@ -11,6 +12,7 @@ import { logs } from "../utils/logger";
 export class SpotifyBrowser {
 	private browser: Browser | undefined;
 	private context: BrowserContext | undefined;
+	private persistentPage: Page | undefined;
 
 	private async ensureBrowser(): Promise<{
 		browser: Browser;
@@ -33,11 +35,10 @@ export class SpotifyBrowser {
 						"--no-zygote",
 						"--disable-extensions",
 						"--disable-background-timer-throttling",
-						'--disable-blink-features=AutomationControlled',
+						"--disable-blink-features=AutomationControlled",
 						"--disable-backgrounding-occluded-windows",
 						"--disable-renderer-backgrounding",
 						"--window-size=1920,1080",
-						
 					],
 				};
 				if (executablePath) launchOptions.executablePath = executablePath;
@@ -48,9 +49,9 @@ export class SpotifyBrowser {
 						"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
 				});
 
-				const initPage = await this.context.newPage();
-				await initPage.goto("https://open.spotify.com/");
-				await initPage.close();
+				this.persistentPage = await this.context.newPage();
+				await this.persistentPage.goto("https://open.spotify.com/");
+				logs("info", "Persistent page created and navigated to Spotify");
 			} catch (err) {
 				this.browser = undefined;
 				this.context = undefined;
@@ -84,7 +85,14 @@ export class SpotifyBrowser {
 
 		return new Promise<SpotifyToken>((resolve, reject) => {
 			(async () => {
-				const page = await context.newPage();
+				let page = this.persistentPage;
+				let shouldClosePage = false;
+
+				if (!page || page.isClosed()) {
+					page = await context.newPage();
+					shouldClosePage = true;
+				}
+
 				let responseReceived = false;
 
 				try {
@@ -114,7 +122,7 @@ export class SpotifyBrowser {
 					const timeout = setTimeout(() => {
 						if (!responseReceived) {
 							logs("error", "Token fetch timeout");
-							page.close();
+							if (shouldClosePage) page.close();
 							reject(new Error("Token fetch exceeded deadline"));
 						}
 					}, 15000);
@@ -127,7 +135,7 @@ export class SpotifyBrowser {
 
 						try {
 							if (!response.ok()) {
-								await page.close();
+								if (shouldClosePage) await page.close();
 								return reject(new Error("Invalid response from Spotify"));
 							}
 
@@ -136,7 +144,7 @@ export class SpotifyBrowser {
 							try {
 								json = JSON.parse(responseBody);
 							} catch {
-								await page.close();
+								if (shouldClosePage) await page.close();
 								logs("error", "Failed to parse response JSON");
 								return reject(new Error("Failed to parse response JSON"));
 							}
@@ -150,10 +158,10 @@ export class SpotifyBrowser {
 								delete (json as Record<string, unknown>)._notes;
 							}
 
-							await page.close();
+							if (shouldClosePage) await page.close();
 							resolve(json as SpotifyToken);
 						} catch (error) {
-							await page.close();
+							if (shouldClosePage) await page.close();
 							logs("error", `Failed to process token response: ${error}`);
 							reject(new Error(`Failed to process token response: ${error}`));
 						}
@@ -194,7 +202,7 @@ export class SpotifyBrowser {
 					await page.goto("https://open.spotify.com/");
 				} catch (error) {
 					if (!responseReceived) {
-						await page.close();
+						if (shouldClosePage) await page.close();
 						logs("error", `Navigation failed: ${error}`);
 						reject(new Error(`Navigation failed: ${error}`));
 					}
@@ -204,6 +212,10 @@ export class SpotifyBrowser {
 	}
 
 	public async close(): Promise<void> {
+		if (this.persistentPage && !this.persistentPage.isClosed()) {
+			await this.persistentPage.close();
+			this.persistentPage = undefined;
+		}
 		if (this.browser) {
 			await this.browser.close();
 			this.browser = undefined;

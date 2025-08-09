@@ -50,7 +50,7 @@ export class SpotifyBrowser {
 				});
 
 				this.persistentPage = await this.context.newPage();
-				await this.persistentPage.goto("https://open.spotify.com/");
+				this.persistentPage.goto("https://open.spotify.com/");
 				logs("info", "Persistent page created and navigated to Spotify");
 			} catch (err) {
 				this.browser = undefined;

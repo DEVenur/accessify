@@ -33,8 +33,11 @@ export class SpotifyBrowser {
 						"--no-zygote",
 						"--disable-extensions",
 						"--disable-background-timer-throttling",
+						'--disable-blink-features=AutomationControlled',
 						"--disable-backgrounding-occluded-windows",
 						"--disable-renderer-backgrounding",
+						"--window-size=1920,1080",
+						
 					],
 				};
 				if (executablePath) launchOptions.executablePath = executablePath;

@@ -49,12 +49,12 @@ export class SpotifyBrowser {
 				});
 
 				this.persistentPage = await this.context.newPage();
-
-				// --- CORREÇÃO 1 APLICADA AQUI ---
+				
+                // --- AJUSTE 1: Adicionado timeout e waitUntil na primeira navegação ---
 				await this.persistentPage.goto("https://open.spotify.com/", {
-					waitUntil: "domcontentloaded",
-					timeout: 90000, // 90 segundos de timeout
-				});
+                    waitUntil: "domcontentloaded",
+                    timeout: 90000
+                });
 
 				logs("info", "Persistent page created and navigated to Spotify");
 			} catch (err) {
@@ -129,12 +129,11 @@ export class SpotifyBrowser {
 							if (shouldClosePage) page.close();
 							reject(new Error("Token fetch exceeded deadline"));
 						}
-					}, 25000); // Aumentei um pouco o timeout interno também
+					}, 25000); // Aumentado para 25s por segurança
 
 					page.on("response", async (response: Response) => {
-						// A lógica original parecia buscar por '/api/token', mas a do accessify padrão busca por 'client_token.json'.
-						// Vamos manter a lógica original do seu arquivo, mas saiba que isso pode precisar de ajuste.
-						if (!response.url().includes("client_token.json") && !response.url().includes("/api/token")) return;
+						// A implementação padrão do accessify usa 'client_token.json'. Usar ambas as verificações torna o código mais robusto.
+						if (!response.url().includes("/api/token") && !response.url().includes("client_token.json")) return;
 
 						responseReceived = true;
 						clearTimeout(timeout);
@@ -146,7 +145,7 @@ export class SpotifyBrowser {
 							}
 
 							const json = await response.json();
-
+							
 							if (
 								json &&
 								typeof json === "object" &&
@@ -165,43 +164,44 @@ export class SpotifyBrowser {
 						}
 					});
 
+					// --- AJUSTE 2: Lógica de bloqueio de rotas foi suavizada ---
 					await page.route("**/*", (route) => {
-						const url = route.request().url();
-						const type = route.request().resourceType();
+						const request = route.request();
+                        const url = request.url();
+                        const type = request.resourceType();
+
+						// Não bloqueia a requisição principal do documento
+                        if (type === 'document' && url.includes("open.spotify.com")) {
+                            return route.continue();
+                        }
 
 						const blockedTypes = new Set([
 							"image",
 							"stylesheet",
 							"font",
 							"media",
-							"websocket",
-							"other",
 						]);
 
 						const blockedPatterns = [
 							"google-analytics",
-							"doubleclick.net",
 							"googletagmanager.com",
-							"https://open.spotifycdn.com/cdn/images/",
-							"https://encore.scdn.co/fonts/",
 						];
 
 						const isBlockedUrl = (u: string) =>
 							blockedPatterns.some((pat) => u.includes(pat));
 
 						if (blockedTypes.has(type) || isBlockedUrl(url)) {
-							route.abort();
-							return;
+							return route.abort();
 						}
 
-						route.continue();
+						return route.continue();
 					});
-                    
-					// --- CORREÇÃO 2 APLICADA AQUI ---
+
+					// --- AJUSTE 3: Adicionado timeout e waitUntil na segunda navegação ---
 					await page.goto("https://open.spotify.com/", {
-						waitUntil: "domcontentloaded",
-						timeout: 90000, // 90 segundos de timeout
-					});
+                        waitUntil: "domcontentloaded",
+                        timeout: 90000
+                    });
 
 				} catch (error) {
 					if (!responseReceived) {

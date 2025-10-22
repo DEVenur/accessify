@@ -18,6 +18,7 @@ export class SpotifyBrowser {
 		browser: Browser;
 		context: BrowserContext;
 	}> {
+		// kalo browser/context sudah ditutup, re-launch
 		if (!this.browser || !this.context) {
 			try {
 				const executablePath =
@@ -49,13 +50,7 @@ export class SpotifyBrowser {
 				});
 
 				this.persistentPage = await this.context.newPage();
-				
-                // --- AJUSTE 1: Adicionado timeout e waitUntil na primeira navegação ---
-				await this.persistentPage.goto("https://open.spotify.com/", {
-                    waitUntil: "domcontentloaded",
-                    timeout: 90000
-                });
-
+				this.persistentPage.goto("https://open.spotify.com/");
 				logs("info", "Persistent page created and navigated to Spotify");
 			} catch (err) {
 				this.browser = undefined;
@@ -64,6 +59,7 @@ export class SpotifyBrowser {
 				throw err;
 			}
 		} else {
+			// kalo browser/context di closed, re-launch
 			if (this.browser.isConnected() === false) {
 				logs("warn", "Browser is not connected, relaunching...");
 				this.browser = undefined;
@@ -71,7 +67,7 @@ export class SpotifyBrowser {
 				return this.ensureBrowser();
 			}
 			try {
-				this.context.pages();
+				this.context.pages(); // trigger error if context closed
 			} catch {
 				logs("warn", "Context is closed, relaunching...");
 				this.browser = undefined;
@@ -129,11 +125,10 @@ export class SpotifyBrowser {
 							if (shouldClosePage) page.close();
 							reject(new Error("Token fetch exceeded deadline"));
 						}
-					}, 25000); // Aumentado para 25s por segurança
+					}, 15000);
 
 					page.on("response", async (response: Response) => {
-						// A implementação padrão do accessify usa 'client_token.json'. Usar ambas as verificações torna o código mais robusto.
-						if (!response.url().includes("/api/token") && !response.url().includes("client_token.json")) return;
+						if (!response.url().includes("/api/token")) return;
 
 						responseReceived = true;
 						clearTimeout(timeout);
@@ -141,11 +136,19 @@ export class SpotifyBrowser {
 						try {
 							if (!response.ok()) {
 								if (shouldClosePage) await page.close();
-								return reject(new Error(`Invalid response from Spotify: ${response.status()}`));
+								return reject(new Error("Invalid response from Spotify"));
 							}
 
-							const json = await response.json();
-							
+							const responseBody = await response.text();
+							let json: unknown;
+							try {
+								json = JSON.parse(responseBody);
+							} catch {
+								if (shouldClosePage) await page.close();
+								logs("error", "Failed to parse response JSON");
+								return reject(new Error("Failed to parse response JSON"));
+							}
+
 							if (
 								json &&
 								typeof json === "object" &&
@@ -164,45 +167,39 @@ export class SpotifyBrowser {
 						}
 					});
 
-					// --- AJUSTE 2: Lógica de bloqueio de rotas foi suavizada ---
 					await page.route("**/*", (route) => {
-						const request = route.request();
-                        const url = request.url();
-                        const type = request.resourceType();
-
-						// Não bloqueia a requisição principal do documento
-                        if (type === 'document' && url.includes("open.spotify.com")) {
-                            return route.continue();
-                        }
+						const url = route.request().url();
+						const type = route.request().resourceType();
 
 						const blockedTypes = new Set([
 							"image",
 							"stylesheet",
 							"font",
 							"media",
+							"websocket",
+							"other",
 						]);
 
 						const blockedPatterns = [
 							"google-analytics",
+							"doubleclick.net",
 							"googletagmanager.com",
+							"https://open.spotifycdn.com/cdn/images/",
+							"https://encore.scdn.co/fonts/",
 						];
 
 						const isBlockedUrl = (u: string) =>
 							blockedPatterns.some((pat) => u.includes(pat));
 
 						if (blockedTypes.has(type) || isBlockedUrl(url)) {
-							return route.abort();
+							route.abort();
+							return;
 						}
 
-						return route.continue();
+						route.continue();
 					});
 
-					// --- AJUSTE 3: Adicionado timeout e waitUntil na segunda navegação ---
-					await page.goto("https://open.spotify.com/", {
-                        waitUntil: "domcontentloaded",
-                        timeout: 90000
-                    });
-
+					await page.goto("https://open.spotify.com/");
 				} catch (error) {
 					if (!responseReceived) {
 						if (shouldClosePage) await page.close();
@@ -225,4 +222,4 @@ export class SpotifyBrowser {
 			this.context = undefined;
 		}
 	}
-}
+					}

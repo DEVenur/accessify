@@ -15,9 +15,7 @@ app.onError((err: unknown, c: Context) => {
 	return c.json({ error: "Internal Server Error" }, 500);
 });
 
-// --- CORREÇÃO APLICADA AQUI ---
-// Garante que a porta do ambiente (ex: 8080 do Leapcell) seja sempre usada.
-const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
+const PORT = Number(process.env.PORT) || 3000;
 
 // Cleanup function
 async function cleanup() {
